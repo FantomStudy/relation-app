@@ -209,7 +209,11 @@ func (ac *AuthController) Logout(c *fiber.Ctx) error {
 	}
 
 	ctx := context.Background()
-	ttl := time.Unix(int64(exp), 0).Sub(time.Now())
+	ttl := time.Until(time.Unix(int64(exp), 0))
+	if ttl <= 0 {
+		ttl = time.Second
+	}
+	
 	if err := RedisClient.Set(ctx, tokenString, "revoked", ttl).Err(); err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to revoke token" + err.Error()})
 	}
@@ -219,4 +223,3 @@ func (ac *AuthController) Logout(c *fiber.Ctx) error {
 		"message": "Logged out successfully",
 	})
 }
-
