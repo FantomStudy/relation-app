@@ -213,7 +213,7 @@ func (ac *AuthController) Logout(c *fiber.Ctx) error {
 	if ttl <= 0 {
 		ttl = time.Second
 	}
-	
+
 	if err := RedisClient.Set(ctx, tokenString, "revoked", ttl).Err(); err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to revoke token" + err.Error()})
 	}
@@ -221,5 +221,140 @@ func (ac *AuthController) Logout(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"success": true,
 		"message": "Logged out successfully",
+	})
+}
+
+func (ac *AuthController) UpdateName(c *fiber.Ctx) error {
+	userID := c.Locals("userID").(uint)
+
+	var request struct {
+		Name string `json:"name" validate:"required"`
+	}
+	if err := c.BodyParser(&request); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid request payload"})
+	}
+
+	if err := ac.Validator.Struct(request); err != nil {
+		var errors []string
+		for _, err := range err.(validator.ValidationErrors) {
+			if err.Tag() == "required" {
+				errors = append(errors, "Name cannot be empty")
+			}
+		}
+		return c.Status(400).JSON(fiber.Map{"errors": errors})
+	}
+
+	var user models.User
+	if err := ac.DB.First(&user, userID).Error; err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "User not found"})
+	}
+
+	user.Name = request.Name
+	if err := ac.DB.Save(&user).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to update name"})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Name updated successfully",
+		"name":    user.Name,
+	})
+}
+
+func (ac *AuthController) UpdateEmail(c *fiber.Ctx) error {
+	userID := c.Locals("userID").(uint)
+
+	var request struct {
+		Email string `json:"email" validate:"required,email"`
+	}
+	if err := c.BodyParser(&request); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid request payload"})
+	}
+
+	if err := ac.Validator.Struct(request); err != nil {
+		var errors []string
+		for _, err := range err.(validator.ValidationErrors) {
+			switch err.Tag() {
+			case "required":
+				errors = append(errors, "Email cannot be empty")
+			case "email":
+				errors = append(errors, "Invalid email format")
+			}
+		}
+		return c.Status(400).JSON(fiber.Map{"errors": errors})
+	}
+
+	var existingUser models.User
+	if err := ac.DB.Where("email = ? AND id != ?", request.Email, userID).First(&existingUser).Error; err == nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Email already exists"})
+	} else if err != gorm.ErrRecordNotFound {
+		return c.Status(500).JSON(fiber.Map{"error": "Database error"})
+	}
+
+	var user models.User
+	if err := ac.DB.First(&user, userID).Error; err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "User not found"})
+	}
+
+	user.Email = request.Email
+	if err := ac.DB.Save(&user).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to update email"})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Email updated successfully",
+		"email":   user.Email,
+	})
+}
+
+func (ac *AuthController) UpdatePassword(c *fiber.Ctx) error {
+	userID := c.Locals("userID").(uint)
+
+	var request struct {
+		OldPassword string `json:"old_password" validate:"required"`
+		NewPassword string `json:"new_password" validate:"required,min=6"`
+	}
+	if err := c.BodyParser(&request); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid request payload"})
+	}
+
+	if err := ac.Validator.Struct(request); err != nil {
+		var errors []string
+		for _, err := range err.(validator.ValidationErrors) {
+			switch err.Tag() {
+			case "required":
+				errors = append(errors, err.Field()+" cannot be empty")
+			case "min":
+				errors = append(errors, "New password must be at least "+err.Param()+" characters")
+			}
+		}
+		return c.Status(400).JSON(fiber.Map{"errors": errors})
+	}
+
+	var user models.User
+	if err := ac.DB.First(&user, userID).Error; err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "User not found"})
+	}
+
+	// Проверка старого пароля
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(request.OldPassword)); err != nil {
+		return c.Status(401).JSON(fiber.Map{"error": "Incorrect old password"})
+	}
+
+	// Хеширование нового пароля
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(request.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to hash new password"})
+	}
+
+	user.Password = string(hashedPassword)
+	if err := ac.DB.Save(&user).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to update password"})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Password updated successfully",
 	})
 }

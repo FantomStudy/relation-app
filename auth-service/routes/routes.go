@@ -9,8 +9,18 @@ import (
 func SetupRoutes(app *fiber.App) {
 	authCtrl := controllers.NewAuthController()
 
+	// Authentication routes
+
 	app.Post("/register", authCtrl.Register)
 	app.Post("/login", authCtrl.Login)
-	app.Get("/profile", middleware.JWTProtected(), authCtrl.Profile)
+
+	// Auth protected routes
 	app.Post("/logout", middleware.JWTProtected(), authCtrl.Logout)
+
+	app.Get("/profile", middleware.JWTProtected(), authCtrl.Profile)
+
+	app.Put("/profile/name", middleware.JWTProtected(), authCtrl.UpdateName)
+	app.Put("/profile/email", middleware.JWTProtected(), authCtrl.UpdateEmail)
+	app.Put("/profile/password", middleware.JWTProtected(), authCtrl.UpdatePassword)
+
 }
