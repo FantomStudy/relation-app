@@ -1,0 +1,38 @@
+services:
+  auth-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000" # host:container
+    environment:
+      - DB_HOST=mysql
+      - DB_USER=root
+      - DB_NAME=auth_db
+      - DB_PASSWORD=passw0rd
+      - DB_PORT=3306
+      - JWT_SECRET=08351090e53c42c3e619a40bf67d1f764fbba6f6cfb6e4bb9449055f3d7eb470d59b98df0e544071e2ecf08710da1d273dff16a70a143382f43bf52223651f8acd281afe0dd9fcc039eae26a2640346ecf76b21245db0d45d2b3c361b55ae6c66c149ce31e3976aed5c72fca376f881a913789731bf06cb3c6b02e2436dadfc26bc4bea4eeded281fb50fe61dcc68c11bfd8f0b068164fcd3bee0cd0ac9a64bf794cf9c5dfcda9448142ec061a1bcbcd262f8863a3c25ee0b174d1d523baf362bd3cb1421a0bfa2db2de3bdd43aa504f6f5d300ee87041b5e18f68aeb73ef9c42d634820bc0c440cfc529b41dfc9b5a5ed04a978ccf5ccb3989c80266a1a189e
+    depends_on:
+      - mysql
+      - redis
+    restart: on-failure
+
+  mysql:
+    image: mysql:latest
+    environment:
+      - MYSQL_ROOT_PASSWORD=passw0rd
+      - MYSQL_DATABASE=auth_db
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+
+  redis:
+    image: redis:latest
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+volumes:
+  mysql-data:
+  redis-data:

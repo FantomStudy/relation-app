@@ -1,9 +1,9 @@
 package middleware
 
 import (
+	"context"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/FantomStudy/relation-app/auth-service/controllers"
 	"github.com/gofiber/fiber/v2"
@@ -27,11 +27,11 @@ func JWTProtected() fiber.Handler {
 
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 
-		if exp, exists := controllers.TokenBlacklist[tokenString]; exists {
-			if time.Now().Before(exp) {
-				return c.Status(401).JSON(fiber.Map{"error": "Token has been revoked"})
-			}
-			delete(controllers.TokenBlacklist, tokenString)
+		ctx := context.Background()
+		if exists, err := controllers.RedisClient.Exists(ctx, tokenString).Result(); err == nil && exists > 0 {
+			return c.Status(401).JSON(fiber.Map{"error": "Token has been revoked"})
+		} else if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "Failed to check token: " + err.Error()})
 		}
 
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {

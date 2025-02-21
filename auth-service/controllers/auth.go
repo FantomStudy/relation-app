@@ -1,6 +1,8 @@
 package controllers
 
 import (
+	"context"
+	"log"
 	"os"
 	"strings"
 	"time"
@@ -8,13 +10,14 @@ import (
 	"github.com/FantomStudy/relation-app/auth-service/models"
 	"github.com/FantomStudy/relation-app/auth-service/shared"
 	"github.com/go-playground/validator/v10"
+	"github.com/go-redis/redis/v8"
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
-var TokenBlacklist = make(map[string]time.Time)
+var RedisClient *redis.Client
 
 type AuthController struct {
 	DB        *gorm.DB
@@ -22,6 +25,17 @@ type AuthController struct {
 }
 
 func NewAuthController() *AuthController {
+	RedisClient = redis.NewClient(&redis.Options{
+		Addr:     "redis:6379",
+		Password: "",
+		DB:       0,
+	})
+
+	ctx := context.Background()
+	if _, err := RedisClient.Ping(ctx).Result(); err != nil {
+		log.Fatal("Error connecting to Redis: ", err)
+	}
+
 	return &AuthController{
 		DB:        shared.Connect(),
 		Validator: validator.New(),
@@ -194,7 +208,15 @@ func (ac *AuthController) Logout(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid expiration in token"})
 	}
 
-	TokenBlacklist[tokenString] = time.Unix(int64(exp), 0)
+	ctx := context.Background()
+	ttl := time.Until(time.Unix(int64(exp), 0))
+	if ttl <= 0 {
+		ttl = time.Second
+	}
+	
+	if err := RedisClient.Set(ctx, tokenString, "revoked", ttl).Err(); err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to revoke token" + err.Error()})
+	}
 
 	return c.JSON(fiber.Map{
 		"success": true,
