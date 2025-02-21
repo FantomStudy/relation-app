@@ -12,4 +12,5 @@ func SetupRoutes(app *fiber.App) {
 	app.Post("/register", authCtrl.Register)
 	app.Post("/login", authCtrl.Login)
 	app.Get("/profile", middleware.JWTProtected(), authCtrl.Profile)
+	app.Post("/logout", middleware.JWTProtected(), authCtrl.Logout)
 }
