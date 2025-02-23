@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/FantomStudy/relation-app/auth-service/models"
+	"github.com/FantomStudy/relation-app/relation-service/models"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
@@ -25,6 +25,9 @@ func Connect() *gorm.DB {
 		log.Fatal("Failed to connect to the database: ", err)
 	}
 
-	db.AutoMigrate(&models.User{})
+	if err := db.AutoMigrate(&models.Pair{}, &models.Friend{}); err != nil {
+		log.Fatal("Failed to migrate tables: ", err)
+	}
+
 	return db
 }

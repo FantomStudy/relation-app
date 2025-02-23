@@ -20,7 +20,10 @@ WORKDIR /app
 
 COPY --from=builder /app/auth-service .
 
+COPY uploads/avatars/default.jpg /app/uploads/avatars/default.jpg
+
+RUN mkdir -p /app/uploads/avatars
+
 EXPOSE 3000
 
 CMD ["./auth-service"]
-

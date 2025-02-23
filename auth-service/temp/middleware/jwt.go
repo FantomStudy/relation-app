@@ -5,14 +5,14 @@ import (
 	"os"
 	"strings"
 
-	"github.com/FantomStudy/relation-app/auth-service/controllers"
+	"github.com/FantomStudy/relation-app/auth-service/temp/redistore"
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
 )
 
 func JWTProtected() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		authHeader := c.Get("Authorization")
+		authHeader := c.Get("Authorization") //? Токен из заголовка Authorization (Authorization: Bearer <token>)
 		if authHeader == "" {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"error": "Token not provided",
@@ -27,14 +27,14 @@ func JWTProtected() fiber.Handler {
 
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 
-		ctx := context.Background()
-		if exists, err := controllers.RedisClient.Exists(ctx, tokenString).Result(); err == nil && exists > 0 {
+		ctx := context.Background() //? Проверка токена в черном списке Redis
+		if exists, err := redistore.Client.Exists(ctx, tokenString).Result(); err == nil && exists > 0 {
 			return c.Status(401).JSON(fiber.Map{"error": "Token has been revoked"})
 		} else if err != nil {
 			return c.Status(500).JSON(fiber.Map{"error": "Failed to check token: " + err.Error()})
 		}
 
-		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) { //? Парсинг токена и проверка подлинности
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fiber.NewError(fiber.StatusUnauthorized, "Invalid signing method")
 			}
@@ -61,7 +61,7 @@ func JWTProtected() fiber.Handler {
 				"error": "Invalid user ID in token",
 			})
 		}
-		c.Locals("userID", uint(userID))
+		c.Locals("userID", uint(userID)) //? Сохранение userID в контексте для дальнейшего использования
 
 		return c.Next()
 	}
